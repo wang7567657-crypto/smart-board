@@ -39,13 +39,13 @@
         <div class="flex items-center justify-between gap-3 mb-3">
           <div class="font-black text-emerald-700 flex items-center gap-2">
             <i data-lucide="type" class="w-5 h-5"></i>
-            輸入完成後，整段一次直書到黑板
+            輸入完成後，整段從右上角直書到黑板
           </div>
           <button onclick="window.cancelBoardText()" class="text-slate-400 hover:text-rose-500 font-black px-2">✕</button>
         </div>
         <textarea id="board-text-input" placeholder="請先把要寫的聯絡簿內容全部打完，再按『寫到黑板』。" class="w-full h-32 bg-slate-50 outline-none resize-none overflow-y-auto whitespace-pre-wrap font-bold shadow-inner border border-slate-200 rounded-xl p-3 text-slate-800" style="font-family:'Kaiti TC','BiauKai','DFKai-SB',serif; line-height:1.45;"></textarea>
         <div class="flex justify-between items-center gap-3 mt-3">
-          <p class="text-xs font-bold text-slate-500">結果會從黑板右側開始，直書排列，並依高度自動往左分欄。</p>
+          <p class="text-xs font-bold text-slate-500">結果會固定從黑板最上方右側開始，直書排列，並依高度自動往左分欄。</p>
           <div class="flex gap-2 shrink-0">
             <button onclick="window.cancelBoardText()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black">取消</button>
             <button onclick="window.finalizeText()" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black shadow">寫到黑板</button>
@@ -59,7 +59,6 @@
   }
 
   let fbCanvas, fbCtx, isFbDrawing = false, fbColor = '#ffffff', fbMode = 'pen';
-  let textPos = { x: 0, y: 0 };
 
   window.drawAutoDate = function () {
     ensureBoardUi();
@@ -123,17 +122,21 @@
         fbCtx.fillStyle = fbColor;
         fbCtx.textBaseline = 'top';
         fbCtx.textAlign = 'center';
-        const marginTop = 24, marginBottom = 28;
-        const safeRight = fbCanvas.width - Math.max(72, fbCanvas.width * 0.08);
-        const startX = Math.min(Math.max(textPos.x || safeRight, safeRight), fbCanvas.width - 40);
-        const startY = Math.max(marginTop, Math.min(textPos.y || marginTop, fbCanvas.height - marginBottom - lineGap));
+
+        // 固定從黑板右上方開始，不再依照點擊位置決定高度
+        const marginTop = Math.max(28, fbCanvas.height * 0.045);
+        const marginBottom = 28;
+        const startX = fbCanvas.width - Math.max(72, fbCanvas.width * 0.08);
+        const startY = marginTop;
         const maxCharsPerColumn = Math.max(1, Math.floor((fbCanvas.height - startY - marginBottom) / lineGap));
         const columns = [];
+
         rawText.split(/\r?\n/).forEach(line => {
           const chars = Array.from(line);
           if (chars.length === 0) { columns.push([]); return; }
           for (let i = 0; i < chars.length; i += maxCharsPerColumn) columns.push(chars.slice(i, i + maxCharsPerColumn));
         });
+
         columns.forEach((chars, colIndex) => {
           const colX = startX - (colIndex * colGap) - (fontSize / 2);
           if (colX < 10) return;
@@ -169,10 +172,6 @@
       if (e.button !== undefined && e.button !== 0) return;
       if (fbMode === 'text') {
         e.preventDefault();
-        const pos = getPos(e);
-        const safeRight = fbCanvas.width - Math.max(72, fbCanvas.width * 0.08);
-        textPos.x = Math.min(Math.max(pos.x, safeRight), fbCanvas.width - 40);
-        textPos.y = Math.max(24, Math.min(pos.y, fbCanvas.height - 120));
         const rawSize = parseInt(document.getElementById('board-pen-size').value);
         const fontSize = Math.max(20, Math.max(24, rawSize * 6) * 0.75);
         textInput.style.fontSize = fontSize + 'px';
