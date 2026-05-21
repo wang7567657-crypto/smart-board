@@ -1,4 +1,4 @@
-// 局部修補：聯絡簿日期固定 + 整段直書輸入
+// 局部修補：聯絡簿日期固定 + 整段直書輸入 + 安全隱藏重複按鈕
 // 用法：在 index.html 的 </body> 前加入：
 // <script src="./board-contact-patch.js"></script>
 (function () {
@@ -9,6 +9,16 @@
     if (num < 20) return "十" + digits[num % 10];
     if (num < 30) return "二十" + (num % 10 === 0 ? "" : digits[num % 10]);
     return "三十" + (num % 10 === 0 ? "" : digits[num % 10]);
+  }
+
+  function hideLowerTeachingButtons() {
+    // 只隱藏生字資訊黑板中間下方那一組大按鈕，不動右上角 tab-trace / tab-swf，避免影響原本載入流程。
+    const infoView = document.getElementById('view-info');
+    if (!infoView) return;
+    const traceButton = infoView.querySelector("button[onclick=\"window.switchView('trace')\"]");
+    const swfButton = infoView.querySelector("button[onclick=\"window.openSwfModal()\"]");
+    if (traceButton) traceButton.style.display = 'none';
+    if (swfButton) swfButton.style.display = 'none';
   }
 
   function ensureBoardUi() {
@@ -270,6 +280,7 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => {
+    hideLowerTeachingButtons();
     ensureBoardUi();
     window.drawAutoDate();
   });
