@@ -1,4 +1,4 @@
-// 局部修補：聯絡簿日期固定 + 整段直書輸入
+// 局部修補：聯絡簿日期固定 + 整段直書輸入 + 移除重複教學按鈕
 // 用法：在 index.html 的 </body> 前加入：
 // <script src="./board-contact-patch.js"></script>
 (function () {
@@ -9,6 +9,15 @@
     if (num < 20) return "十" + digits[num % 10];
     if (num < 30) return "二十" + (num % 10 === 0 ? "" : digits[num % 10]);
     return "三十" + (num % 10 === 0 ? "" : digits[num % 10]);
+  }
+
+  function hideDuplicateTeachingButtons() {
+    // 保留生字黑板右上角的返回頁籤，移除重複的「仿寫練習」與「舊版動畫」頁籤。
+    // 原本在生字資訊區已經有這兩個大按鈕，所以右上角不用再出現一次。
+    const traceTab = document.getElementById('tab-trace');
+    const swfTab = document.getElementById('tab-swf');
+    if (traceTab) traceTab.remove();
+    if (swfTab) swfTab.remove();
   }
 
   function ensureBoardUi() {
@@ -271,6 +280,7 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => {
+    hideDuplicateTeachingButtons();
     ensureBoardUi();
     window.drawAutoDate();
   });
