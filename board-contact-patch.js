@@ -1,4 +1,4 @@
-// 局部修補：聯絡簿日期固定 + 整段直書輸入 + 移除重複教學按鈕
+// 局部修補：聯絡簿日期固定 + 整段直書輸入 + 隱藏重複教學按鈕
 // 用法：在 index.html 的 </body> 前加入：
 // <script src="./board-contact-patch.js"></script>
 (function () {
@@ -12,12 +12,12 @@
   }
 
   function hideDuplicateTeachingButtons() {
-    // 保留生字黑板右上角的返回頁籤，移除重複的「仿寫練習」與「舊版動畫」頁籤。
-    // 原本在生字資訊區已經有這兩個大按鈕，所以右上角不用再出現一次。
+    // 保留元素本身，避免原本 switchView() 找不到 tab-trace / tab-swf 而中斷。
+    // 只用 hidden 隱藏右上角重複頁籤。
     const traceTab = document.getElementById('tab-trace');
     const swfTab = document.getElementById('tab-swf');
-    if (traceTab) traceTab.remove();
-    if (swfTab) swfTab.remove();
+    if (traceTab) traceTab.classList.add('hidden');
+    if (swfTab) swfTab.classList.add('hidden');
   }
 
   function ensureBoardUi() {
@@ -132,7 +132,6 @@
         fbCtx.textBaseline = 'top';
         fbCtx.textAlign = 'center';
 
-        // 固定從黑板右上方開始，不再依照點擊位置決定高度
         const marginTop = Math.max(28, fbCanvas.height * 0.045);
         const marginBottom = 28;
         const startX = fbCanvas.width - Math.max(72, fbCanvas.width * 0.08);
