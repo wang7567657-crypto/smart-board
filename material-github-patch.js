@@ -1,15 +1,16 @@
 // 局部修補：生字語詞教材編輯站 → 儲存 / 載入 GitHub 教材
-// 用法：在 index.html 的 </body> 前加入：
-// <script src="./material-github-patch.js"></script>
-//
-// 設計目標：
-// 1. 不改原本 AI 生成與 AI 修改流程。
-// 2. 把 primary-tsv-input / extra-tsv-input 內容存成 JSON。
-// 3. 儲存位置預設為 my-chinese-assets/materials/出版社/年級/學期/課次.json。
-// 4. 在 Gemini 沙盒中，如果 uploadToGithub 可用，就能直接上傳。
-// 5. 在 GitHub Pages 中，即使不能上傳，也可以讀取已存在的 GitHub 教材。
+// 也會自動載入 worksheet-export-patch.js，讓匯出學習單按鈕具備功能。
 (function () {
   const PATCH_ID = 'material-github-patch-panel';
+
+  function loadWorksheetExportPatch() {
+    if (document.getElementById('worksheet-export-patch-script')) return;
+    const script = document.createElement('script');
+    script.id = 'worksheet-export-patch-script';
+    script.src = './worksheet-export-patch.js?v=' + Date.now();
+    script.defer = true;
+    document.body.appendChild(script);
+  }
 
   function getEl(id) {
     return document.getElementById(id);
@@ -191,6 +192,7 @@
   }
 
   function applyPatch() {
+    loadWorksheetExportPatch();
     insertMaterialPanel();
   }
 
@@ -204,7 +206,6 @@
     applyPatch();
   }
 
-  // 有些模式是切換後才顯示，補跑幾次確保按鈕會插入。
   window.addEventListener('load', applyPatch);
   setTimeout(applyPatch, 300);
   setTimeout(applyPatch, 1200);
