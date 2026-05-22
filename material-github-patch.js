@@ -1,15 +1,23 @@
 // 局部修補：生字語詞教材編輯站 → 儲存 / 載入 GitHub 教材
-// 也會自動載入 worksheet-export-patch.js，讓匯出學習單按鈕具備功能。
+// 也會自動載入 worksheet-export-patch.js 與 game-mode-patch.js。
 (function () {
   const PATCH_ID = 'material-github-patch-panel';
 
-  function loadWorksheetExportPatch() {
-    if (document.getElementById('worksheet-export-patch-script')) return;
+  function loadExternalPatch(scriptId, scriptPath) {
+    if (document.getElementById(scriptId)) return;
     const script = document.createElement('script');
-    script.id = 'worksheet-export-patch-script';
-    script.src = './worksheet-export-patch.js?v=' + Date.now();
+    script.id = scriptId;
+    script.src = scriptPath + '?v=' + Date.now();
     script.defer = true;
     document.body.appendChild(script);
+  }
+
+  function loadWorksheetExportPatch() {
+    loadExternalPatch('worksheet-export-patch-script', './worksheet-export-patch.js');
+  }
+
+  function loadGameModePatch() {
+    loadExternalPatch('game-mode-patch-script', './game-mode-patch.js');
   }
 
   function getEl(id) {
@@ -193,6 +201,7 @@
 
   function applyPatch() {
     loadWorksheetExportPatch();
+    loadGameModePatch();
     insertMaterialPanel();
   }
 
