@@ -1,10 +1,11 @@
-// 生字練習工坊正式重構版
-// 核心改成接近參考程式的架構：strokesData、智慧拆解、播放部件、部件拼圖、拖曳殘影、放回田字格。
+// 生字練習工坊正式版 v2
+// 單一正式模組：整合播放展示、彩色仿寫、紅色起筆點、筆畫配對、部件拼貼。
 (function () {
   const MODAL_ID = 'cw-fix-modal';
   const STYLE_ID = 'cw-fix-style';
   const BTN_ID = 'tab-workshop-fix';
   const DATA_CDN = 'https://cdn.jsdelivr.net/npm/hanzi-writer-data@2.0.1/';
+  const COLORS = ['#2563eb', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6'];
 
   const BUILTIN_SPLITS = {
     '銀': [[0,1,2,3,4,5,6,7],[8,9,10,11,12,13]],
@@ -32,25 +33,14 @@
     '思': [[0,1,2,3,4],[5,6,7,8]]
   };
 
-  let activeChar = '';
-  let tab = 'demo';
-  let rawData = null;
-  let currentHanziWriter = null;
-  let componentSplit = [];
-  let components = [];
-  let placedComps = [];
-  let demoStep = -1;
-  let demoTimer = null;
-  let drag = null;
-  let strictOrder = false;
-  let penColor = '#ef4444';
-  let penSize = 8;
-  let drawing = false;
-  let showModel = true;
+  let activeChar = '', tab = 'demo', rawData = null, currentHanziWriter = null;
+  let componentSplit = [], components = [], placedComps = [];
+  let demoStep = -1, demoTimer = null, drag = null;
+  let strictOrder = false, penColor = '#ef4444', penSize = 8, drawing = false, showModel = true;
 
   function el(id){ return document.getElementById(id); }
   function clamp(n,min,max){ return Math.max(min, Math.min(max,n)); }
-  function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+  function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
   function installStyle(){
     if(el(STYLE_ID)) return;
@@ -62,12 +52,12 @@
       .cw-left{padding:10px;display:flex;flex-direction:column;gap:8px;align-items:center;overflow:auto;}
       .cw-char{width:60px;height:60px;border-radius:16px;border:2px solid #dbe4ef;background:#fff;color:#334155;font-size:31px;font-weight:900;font-family:'Kaiti TC','BiauKai','DFKai-SB',serif;cursor:pointer;box-shadow:0 3px 8px rgba(15,23,42,.1);}
       .cw-char.active{background:#2563eb;color:white;border-color:#2563eb;transform:scale(1.05);}
-      .cw-main{display:flex;flex-direction:column;min-width:0;}
-      .cw-top{min-height:62px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;box-sizing:border-box;}
+      .cw-main{display:flex;flex-direction:column;min-width:0;}.cw-top{min-height:62px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;box-sizing:border-box;}
       .cw-tabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.cw-tab{border:0;background:#f1f5f9;color:#475569;border-radius:14px;padding:10px 13px;font-weight:900;cursor:pointer}.cw-tab.active{background:#0f766e;color:white}.cw-close{border:0;background:#fee2e2;color:#be123c;border-radius:14px;font-weight:900;padding:10px 14px;cursor:pointer;}
       .cw-content{flex:1;padding:18px;overflow:auto;background:#fbfdff}.cw-title{font-size:21px;font-weight:900;color:#0f172a;margin-bottom:12px;display:flex;justify-content:space-between;gap:10px}.cw-sub{font-size:14px;color:#64748b;font-weight:800}
       .cw-board-wrap{display:flex;justify-content:center;align-items:center;min-height:470px}.cw-grid{position:relative;width:min(470px,88vw);aspect-ratio:1/1;background:white;border:5px solid #1e293b;border-radius:18px;overflow:hidden;box-shadow:inset 0 0 0 1px #e2e8f0,0 10px 24px rgba(15,23,42,.12);touch-action:none}.cw-grid:before{content:'';position:absolute;inset:0;background:linear-gradient(45deg,transparent 49.4%,#cbd5e1 50%,transparent 50.6%),linear-gradient(-45deg,transparent 49.4%,#cbd5e1 50%,transparent 50.6%),linear-gradient(90deg,transparent 49.5%,#cbd5e1 50%,transparent 50.5%),linear-gradient(0deg,transparent 49.5%,#cbd5e1 50%,transparent 50.5%);opacity:.78;pointer-events:none}
-      .cw-svg{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none}.cw-model{position:absolute;inset:0;opacity:.14;z-index:1;pointer-events:none}.cw-canvas{position:absolute;inset:0;z-index:6;touch-action:none}.cw-big-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:230px;font-weight:900;font-family:'Kaiti TC','BiauKai','DFKai-SB',serif;color:#2563eb;z-index:2;pointer-events:none}
+      .cw-svg{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none}.cw-model{position:absolute;inset:0;z-index:1;pointer-events:none}.cw-canvas{position:absolute;inset:0;z-index:6;touch-action:none}.cw-big-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:230px;font-weight:900;font-family:'Kaiti TC','BiauKai','DFKai-SB',serif;color:#2563eb;z-index:2;pointer-events:none}.cw-trace-color-path{opacity:.48}.cw-start-dot{filter:drop-shadow(0 2px 4px rgba(220,38,38,.55))}.cw-start-ring{animation:cwStartPulse 1.15s ease-in-out infinite;transform-origin:center}@keyframes cwStartPulse{0%,100%{opacity:.2}50%{opacity:.7}}
+      .cw-start-tip{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:8;background:#fff1f2;border:1px solid #fecdd3;color:#e11d48;border-radius:14px;padding:9px 14px;font-weight:900;font-size:14px;box-shadow:0 4px 12px rgba(225,29,72,.12)}
       .cw-bank{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center;background:#f8fafc;border:2px dashed #cbd5e1;border-radius:18px;min-height:112px;padding:12px;margin-top:14px}.cw-piece{width:116px;height:102px;border-radius:18px;border:3px solid #e2e8f0;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px rgba(15,23,42,.18);cursor:grab;touch-action:none;user-select:none;overflow:hidden}.cw-piece:active{cursor:grabbing}.cw-piece svg{width:112px;height:98px;display:block}
       .cw-ghost{position:fixed;z-index:1000002;width:280px;height:280px;border-radius:24px;background:rgba(255,255,255,.94);border:4px solid #f59e0b;box-shadow:0 20px 50px rgba(15,23,42,.35);pointer-events:none;display:flex;align-items:center;justify-content:center}.cw-ghost svg{width:260px;height:260px}
       .cw-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;margin-top:14px}.cw-btn{border:0;border-radius:14px;padding:11px 15px;font-weight:900;cursor:pointer;background:#e2e8f0;color:#0f172a}.cw-btn.primary{background:#2563eb;color:#fff}.cw-btn.good{background:#10b981;color:#fff}.cw-btn.warn{background:#f59e0b;color:#fff}.cw-btn.rose{background:#f43f5e;color:#fff}.cw-feedback{text-align:center;font-weight:900;min-height:28px;margin-top:10px;color:#64748b}
@@ -78,137 +68,49 @@
     document.head.appendChild(st);
   }
 
-  function chars(){
-    if(Array.isArray(window.state?.currentVocab) && window.state.currentVocab.length) return window.state.currentVocab.filter(Boolean);
-    return Array.from(document.querySelectorAll('#vocab-list button')).map(b=>b.textContent.trim()).filter(Boolean);
-  }
-  function currentChar(){
-    if(window.state?.activeChar) return window.state.activeChar;
-    const a=document.querySelector('#vocab-list button.bg-indigo-600'); if(a) return a.textContent.trim();
-    const m=(el('current-char-info')?.textContent||'').match(/「(.+?)」/); return m?m[1]:(chars()[0]||'');
-  }
+  function chars(){ if(Array.isArray(window.state?.currentVocab)&&window.state.currentVocab.length)return window.state.currentVocab.filter(Boolean); return Array.from(document.querySelectorAll('#vocab-list button')).map(b=>b.textContent.trim()).filter(Boolean); }
+  function currentChar(){ if(window.state?.activeChar)return window.state.activeChar; const a=document.querySelector('#vocab-list button.bg-indigo-600'); if(a)return a.textContent.trim(); const m=(el('current-char-info')?.textContent||'').match(/「(.+?)」/); return m?m[1]:(chars()[0]||''); }
 
-  async function loadData(c){
-    rawData=null; currentHanziWriter=null;
-    try{
-      const r=await fetch(DATA_CDN + encodeURIComponent(c) + '.json', {cache:'force-cache'});
-      if(!r.ok) throw new Error('not found');
-      rawData=await r.json();
-      currentHanziWriter={
-        character:c,
-        strokesData:(rawData.strokes||[]).map((pathString,idx)=>({idx,pathString,median:rawData.medians?.[idx]||[]})),
-        medians:rawData.medians||[]
-      };
-    }catch(e){ console.warn('stroke data failed', c, e); rawData=null; currentHanziWriter=null; }
-    setComponentSplit();
-  }
-
-  function savedSplit(){ try{const s=localStorage.getItem('cw_groups_'+activeChar); if(s){const g=JSON.parse(s); if(Array.isArray(g)&&g.length) return g;}}catch(e){} return null; }
-  function calculateSmartSplit(){
-    const strokes=currentHanziWriter?.strokesData||[]; const n=strokes.length; if(!n) return [];
-    const manual=savedSplit(); if(manual && manual.flat().length===n) return manual;
-    if(BUILTIN_SPLITS[activeChar]) return BUILTIN_SPLITS[activeChar].filter(g=>g.every(i=>i<n));
-    const count=n<=6?2:n<=12?3:4; const groups=[];
-    for(let i=0;i<count;i++){const a=Math.floor(i*n/count), b=Math.floor((i+1)*n/count);groups.push(Array.from({length:b-a},(_,k)=>a+k));}
-    return groups;
-  }
+  async function loadData(c){ rawData=null; currentHanziWriter=null; try{ const r=await fetch(DATA_CDN+encodeURIComponent(c)+'.json',{cache:'force-cache'}); if(!r.ok)throw new Error('not found'); rawData=await r.json(); currentHanziWriter={character:c,strokesData:(rawData.strokes||[]).map((pathString,idx)=>({idx,pathString,median:rawData.medians?.[idx]||[]})),medians:rawData.medians||[]}; }catch(e){ console.warn('stroke data failed',c,e); rawData=null; currentHanziWriter=null; } setComponentSplit(); }
+  function savedSplit(){ try{const s=localStorage.getItem('cw_groups_'+activeChar); if(s){const g=JSON.parse(s); if(Array.isArray(g)&&g.length)return g;}}catch(e){} return null; }
+  function calculateSmartSplit(){ const strokes=currentHanziWriter?.strokesData||[], n=strokes.length; if(!n)return []; const manual=savedSplit(); if(manual&&manual.flat().length===n)return manual; if(BUILTIN_SPLITS[activeChar])return BUILTIN_SPLITS[activeChar].filter(g=>g.every(i=>i<n)); const count=n<=6?2:n<=12?3:4, groups=[]; for(let i=0;i<count;i++){const a=Math.floor(i*n/count),b=Math.floor((i+1)*n/count);groups.push(Array.from({length:b-a},(_,k)=>a+k));} return groups; }
   function setComponentSplit(){ componentSplit=calculateSmartSplit(); buildComponents(); }
-  function buildComponents(){
-    const strokes=currentHanziWriter?.strokesData||[];
-    components=componentSplit.map((group,i)=>{
-      const paths=group.map(idx=>strokes[idx]?.pathString).filter(Boolean);
-      const pts=group.flatMap(idx=>strokes[idx]?.median||[]).filter(p=>Array.isArray(p)&&p.length>=2);
-      const cx=pts.length?pts.reduce((s,p)=>s+p[0],0)/pts.length:512;
-      const cy=pts.length?pts.reduce((s,p)=>s+p[1],0)/pts.length:512;
-      return {id:i, strokeIndices:group, paths, center:{x:cx,y:cy}};
-    });
-  }
+  function buildComponents(){ const strokes=currentHanziWriter?.strokesData||[]; components=componentSplit.map((group,i)=>{ const paths=group.map(idx=>strokes[idx]?.pathString).filter(Boolean); const pts=group.flatMap(idx=>strokes[idx]?.median||[]).filter(p=>Array.isArray(p)&&p.length>=2); const cx=pts.length?pts.reduce((s,p)=>s+p[0],0)/pts.length:512; const cy=pts.length?pts.reduce((s,p)=>s+p[1],0)/pts.length:512; return {id:i,strokeIndices:group,paths,center:{x:cx,y:cy}}; }); }
 
-  function svg(paths,color='#111827',opacity=1, cls=''){
-    return `<svg class="${cls}" viewBox="0 0 1024 1024"><g transform="translate(0,900) scale(1,-1)">${paths.map(d=>`<path d="${d}" fill="${color}" opacity="${opacity}"/>`).join('')}</g></svg>`;
-  }
-  function fullSvg(opacity=.96,color='#2563eb'){return currentHanziWriter?svg(currentHanziWriter.strokesData.map(s=>s.pathString),color,opacity,'cw-svg'):`<div class="cw-big-text">${activeChar}</div>`;}
-  function placedSvg(){
-    if(!currentHanziWriter) return '';
-    const paths=placedComps.flatMap(id=>components[id]?.paths||[]);
-    return paths.length?svg(paths,'#2563eb',.96,'cw-svg'):'';
-  }
-  function hiddenSvg(missingId){
-    const paths=components.filter(c=>c.id!==missingId).flatMap(c=>c.paths);
-    return paths.length?svg(paths,'#cbd5e1',.38,'cw-svg'):'';
-  }
+  function svg(paths,color='#111827',opacity=1,cls=''){ return `<svg class="${cls}" viewBox="0 0 1024 1024"><g transform="translate(0,900) scale(1,-1)">${paths.map(d=>`<path d="${d}" fill="${color}" opacity="${opacity}"/>`).join('')}</g></svg>`; }
+  function fullSvg(opacity=.96,color='#2563eb'){ return currentHanziWriter?svg(currentHanziWriter.strokesData.map(s=>s.pathString),color,opacity,'cw-svg'):`<div class="cw-big-text">${activeChar}</div>`; }
+  function coloredTraceSvg(){ if(!currentHanziWriter)return `<div class="cw-big-text" style="color:#2563eb;opacity:.42">${activeChar}</div>`; const groupOf=new Map(); componentSplit.forEach((g,gi)=>g.forEach(idx=>groupOf.set(idx,gi))); const paths=currentHanziWriter.strokesData.map(s=>`<path class="cw-trace-color-path" d="${s.pathString}" fill="${COLORS[(groupOf.get(s.idx)||0)%COLORS.length]}"/>`).join(''); const first=rawData?.medians?.[0]?.[0]; const start=first?`<circle class="cw-start-ring" cx="${first[0]}" cy="${first[1]}" r="42" fill="#ef4444" opacity=".25"/><circle class="cw-start-dot" cx="${first[0]}" cy="${first[1]}" r="25" fill="#ef4444" stroke="#ffffff" stroke-width="8"/>`:''; return `<svg class="cw-svg" viewBox="0 0 1024 1024"><g transform="translate(0,900) scale(1,-1)">${paths}${start}</g></svg>`; }
+  function placedSvg(){ if(!currentHanziWriter)return ''; const paths=placedComps.flatMap(id=>components[id]?.paths||[]); return paths.length?svg(paths,'#2563eb',.96,'cw-svg'):''; }
+  function hiddenSvg(missingId){ const paths=components.filter(c=>c.id!==missingId).flatMap(c=>c.paths); return paths.length?svg(paths,'#cbd5e1',.38,'cw-svg'):''; }
   function board(inner=''){ return `<div class="cw-board-wrap"><div class="cw-grid" id="cw-grid">${inner}</div></div>`; }
 
-  function ensureModal(){
-    installStyle(); if(el(MODAL_ID)) return;
-    const m=document.createElement('div'); m.id=MODAL_ID;
-    m.innerHTML=`<div class="cw-shell"><div class="cw-panel cw-left" id="cw-list"></div><div class="cw-panel cw-main"><div class="cw-top"><div class="cw-tabs"><button class="cw-tab" data-tab="demo">▶ 播放展示</button><button class="cw-tab" data-tab="trace">✎ 仿寫練習</button><button class="cw-tab" data-tab="stroke">◫ 筆畫配對</button><button class="cw-tab" data-tab="puzzle">🧩 部件拼貼</button></div><button class="cw-close" id="cw-close">關閉</button></div><div class="cw-content" id="cw-content"></div></div><div class="cw-panel cw-right"><div class="cw-right-title">正確字形 <span id="cw-active"></span></div><div class="cw-mini"><span id="cw-ref"></span></div><div class="cw-right-title">拆解資訊</div><div class="cw-chip-wrap" id="cw-chips"></div><input class="cw-input" id="cw-split-input" placeholder="例如：1-8 / 9-14"><button class="cw-btn warn" id="cw-save-split">儲存筆畫群</button><label style="font-weight:900;color:#475569"><input type="checkbox" id="cw-strict"> 照順序拼貼</label><div class="cw-right-title">書寫工具</div><div class="cw-tool-row"><button class="cw-color active" data-color="#ef4444" style="background:#ef4444"></button><button class="cw-color" data-color="#2563eb" style="background:#2563eb"></button><button class="cw-color" data-color="#f59e0b" style="background:#f59e0b"></button><button class="cw-color" data-color="#22c55e" style="background:#22c55e"></button></div><input id="cw-size" type="range" min="3" max="24" value="8"><button class="cw-btn" id="cw-toggle-model">顯示/隱藏範字</button><button class="cw-btn rose" id="cw-clear-canvas">清除畫布</button></div></div>`;
-    document.body.appendChild(m);
-    el('cw-close').onclick=close;
-    m.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;resetMode();render();});
-    m.querySelectorAll('[data-color]').forEach(b=>b.onclick=()=>{penColor=b.dataset.color;m.querySelectorAll('[data-color]').forEach(x=>x.classList.remove('active'));b.classList.add('active');});
-    el('cw-size').oninput=e=>penSize=parseInt(e.target.value,10);
-    el('cw-toggle-model').onclick=()=>{showModel=!showModel;const x=el('cw-model');if(x)x.style.display=showModel?'block':'none';};
-    el('cw-clear-canvas').onclick=clearCanvas;
-    el('cw-strict').onchange=e=>strictOrder=e.target.checked;
-    el('cw-save-split').onclick=()=>saveSplitFromInput();
-  }
+  function ensureModal(){ installStyle(); if(el(MODAL_ID))return; const m=document.createElement('div'); m.id=MODAL_ID; m.innerHTML=`<div class="cw-shell"><div class="cw-panel cw-left" id="cw-list"></div><div class="cw-panel cw-main"><div class="cw-top"><div class="cw-tabs"><button class="cw-tab" data-tab="demo">▶ 播放展示</button><button class="cw-tab" data-tab="trace">✎ 仿寫練習</button><button class="cw-tab" data-tab="stroke">◫ 筆畫配對</button><button class="cw-tab" data-tab="puzzle">🧩 部件拼貼</button></div><button class="cw-close" id="cw-close">關閉</button></div><div class="cw-content" id="cw-content"></div></div><div class="cw-panel cw-right"><div class="cw-right-title">正確字形 <span id="cw-active"></span></div><div class="cw-mini"><span id="cw-ref"></span></div><div class="cw-right-title">拆解資訊</div><div class="cw-chip-wrap" id="cw-chips"></div><input class="cw-input" id="cw-split-input" placeholder="例如：1-8 / 9-14"><button class="cw-btn warn" id="cw-save-split">儲存筆畫群</button><label style="font-weight:900;color:#475569"><input type="checkbox" id="cw-strict"> 照順序拼貼</label><div class="cw-right-title">書寫工具</div><div class="cw-tool-row"><button class="cw-color active" data-color="#ef4444" style="background:#ef4444"></button><button class="cw-color" data-color="#2563eb" style="background:#2563eb"></button><button class="cw-color" data-color="#f59e0b" style="background:#f59e0b"></button><button class="cw-color" data-color="#22c55e" style="background:#22c55e"></button></div><input id="cw-size" type="range" min="3" max="24" value="8"><button class="cw-btn" id="cw-toggle-model">顯示/隱藏範字</button><button class="cw-btn rose" id="cw-clear-canvas">清除畫布</button></div></div>`; document.body.appendChild(m); el('cw-close').onclick=close; m.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;resetMode();render();}); m.querySelectorAll('[data-color]').forEach(b=>b.onclick=()=>{penColor=b.dataset.color;m.querySelectorAll('[data-color]').forEach(x=>x.classList.remove('active'));b.classList.add('active');}); el('cw-size').oninput=e=>penSize=parseInt(e.target.value,10); el('cw-toggle-model').onclick=()=>{showModel=!showModel;const x=el('cw-model');if(x)x.style.display=showModel?'block':'none';}; el('cw-clear-canvas').onclick=clearCanvas; el('cw-strict').onchange=e=>strictOrder=e.target.checked; el('cw-save-split').onclick=saveSplitFromInput; }
+  function splitText(){ return componentSplit.map(g=>`${g[0]+1}-${g[g.length-1]+1}`).join(' / '); }
+  function saveSplitFromInput(){ const max=currentHanziWriter?.strokesData?.length||0, text=el('cw-split-input').value.trim(); if(!text||!max)return alert('目前沒有筆畫資料。'); const groups=text.split('/').map(s=>s.trim()).filter(Boolean).map(seg=>{const m=seg.match(/^(\d+)(?:\s*-\s*(\d+))?$/); if(!m)return null; const a=+m[1],b=+(m[2]||m[1]); if(a<1||b<a||b>max)return null; return Array.from({length:b-a+1},(_,i)=>a-1+i);}); if(groups.some(g=>!g)||groups.flat().length!==max)return alert('格式錯誤，請確認每一筆都有被分配，例如：1-8 / 9-14'); localStorage.setItem('cw_groups_'+activeChar,JSON.stringify(groups)); setComponentSplit(); resetMode(); render(); }
+  function resetMode(){ clearInterval(demoTimer); demoTimer=null; demoStep=-1; placedComps=[]; drag=null; }
+  function addButton(){ const tabs=el('board-tabs'); if(!tabs)return; ['tab-workshop','tab-workshop-template'].forEach(id=>{const x=el(id); if(x)x.remove();}); if(el(BTN_ID))return; const b=document.createElement('button'); b.id=BTN_ID; b.type='button'; b.className='px-4 py-1.5 rounded-full text-sm font-bold transition-all text-slate-300 hover:text-white hover:bg-slate-700'; b.textContent='練習工坊'; b.onclick=open; tabs.appendChild(b); }
+  async function open(){ ensureModal(); activeChar=currentChar(); if(!activeChar)return alert('請先載入課文並選擇一個生字。'); el(MODAL_ID).style.display='flex'; el('cw-content').innerHTML='<div class="cw-loading">正在載入真正筆畫資料...</div>'; resetMode(); await loadData(activeChar); render(); }
+  function close(){ clearInterval(demoTimer); el(MODAL_ID).style.display='none'; }
+  async function chooseChar(c){ activeChar=c; el('cw-content').innerHTML='<div class="cw-loading">正在載入真正筆畫資料...</div>'; resetMode(); await loadData(c); render(); }
 
-  function splitText(){return componentSplit.map(g=>`${g[0]+1}-${g[g.length-1]+1}`).join(' / ');}
-  function saveSplitFromInput(){
-    const max=currentHanziWriter?.strokesData?.length||0; const text=el('cw-split-input').value.trim(); if(!text||!max) return alert('目前沒有筆畫資料。');
-    const groups=text.split('/').map(s=>s.trim()).filter(Boolean).map(seg=>{const m=seg.match(/^(\d+)(?:\s*-\s*(\d+))?$/); if(!m)return null; const a=+m[1], b=+(m[2]||m[1]); if(a<1||b<a||b>max)return null; return Array.from({length:b-a+1},(_,i)=>a-1+i);});
-    if(groups.some(g=>!g)||groups.flat().length!==max) return alert('格式錯誤，請確認每一筆都有被分配，例如：1-8 / 9-14');
-    localStorage.setItem('cw_groups_'+activeChar,JSON.stringify(groups)); setComponentSplit(); resetMode(); render();
-  }
+  function render(){ renderList(); renderTabs(); renderRight(); if(tab==='demo')renderDemo(); else if(tab==='trace')renderTrace(); else if(tab==='stroke')renderStroke(); else renderPuzzle(); }
+  function renderList(){ const cs=chars(); el('cw-list').innerHTML=cs.length?cs.map(c=>`<button class="cw-char ${c===activeChar?'active':''}" data-ch="${c}">${c}</button>`).join(''):'<div style="font-size:12px;color:#64748b;font-weight:900;text-align:center">請先載入課文</div>'; el('cw-list').querySelectorAll('[data-ch]').forEach(b=>b.onclick=()=>chooseChar(b.dataset.ch)); }
+  function renderTabs(){ document.querySelectorAll(`#${MODAL_ID} [data-tab]`).forEach(b=>b.classList.toggle('active',b.dataset.tab===tab)); }
+  function renderRight(){ el('cw-active').textContent=activeChar; el('cw-ref').textContent=activeChar; el('cw-chips').innerHTML=componentSplit.length?componentSplit.map((g,i)=>`<span class="cw-chip">${i+1}: ${g[0]+1}-${g[g.length-1]+1}</span>`).join(''):'<span class="cw-chip">文字模式</span>'; el('cw-split-input').value=splitText(); if(el('cw-strict'))el('cw-strict').checked=strictOrder; }
 
-  function resetMode(){clearInterval(demoTimer); demoTimer=null; demoStep=-1; placedComps=[]; drag=null;}
-  function addButton(){const tabs=el('board-tabs'); if(!tabs)return; ['tab-workshop','tab-workshop-template'].forEach(id=>{const x=el(id); if(x)x.remove();}); if(el(BTN_ID))return; const b=document.createElement('button'); b.id=BTN_ID; b.type='button'; b.className='px-4 py-1.5 rounded-full text-sm font-bold transition-all text-slate-300 hover:text-white hover:bg-slate-700'; b.textContent='練習工坊'; b.onclick=open; tabs.appendChild(b);}
-  async function open(){ensureModal(); activeChar=currentChar(); if(!activeChar)return alert('請先載入課文並選擇一個生字。'); el(MODAL_ID).style.display='flex'; el('cw-content').innerHTML='<div class="cw-loading">正在載入真正筆畫資料...</div>'; resetMode(); await loadData(activeChar); render();}
-  function close(){clearInterval(demoTimer); el(MODAL_ID).style.display='none';}
-  async function chooseChar(c){activeChar=c; el('cw-content').innerHTML='<div class="cw-loading">正在載入真正筆畫資料...</div>'; resetMode(); await loadData(c); render();}
-
-  function render(){renderList();renderTabs();renderRight(); if(tab==='demo')renderDemo(); else if(tab==='trace')renderTrace(); else if(tab==='stroke')renderStroke(); else renderPuzzle();}
-  function renderList(){const cs=chars();el('cw-list').innerHTML=cs.length?cs.map(c=>`<button class="cw-char ${c===activeChar?'active':''}" data-ch="${c}">${c}</button>`).join(''):'<div style="font-size:12px;color:#64748b;font-weight:900;text-align:center">請先載入課文</div>';el('cw-list').querySelectorAll('[data-ch]').forEach(b=>b.onclick=()=>chooseChar(b.dataset.ch));}
-  function renderTabs(){document.querySelectorAll(`#${MODAL_ID} [data-tab]`).forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));}
-  function renderRight(){el('cw-active').textContent=activeChar;el('cw-ref').textContent=activeChar;el('cw-chips').innerHTML=componentSplit.length?componentSplit.map((g,i)=>`<span class="cw-chip">${i+1}: ${g[0]+1}-${g[g.length-1]+1}</span>`).join(''):'<span class="cw-chip">文字模式</span>';el('cw-split-input').value=splitText(); if(el('cw-strict'))el('cw-strict').checked=strictOrder;}
-
-  function renderDemo(){
-    if(!currentHanziWriter){el('cw-content').innerHTML=`<div class="cw-title"><span>播放展示</span><span class="cw-sub">沒有筆畫資料</span></div>${board(`<div class="cw-big-text">${activeChar}</div>`)}`;return;}
-    const colors=['#2563eb','#22c55e','#f59e0b','#ef4444','#8b5cf6'];
-    const paths=components.flatMap(c=>c.paths.map(p=>`<path d="${p}" fill="${colors[c.id%colors.length]}" opacity="${c.id<=demoStep?1:.10}"/>`)).join('');
-    el('cw-content').innerHTML=`<div class="cw-title"><span>播放展示：依部件逐步出現</span><span class="cw-sub">第 ${Math.max(0,demoStep+1)} / ${components.length} 組</span></div>${board(`<svg class="cw-svg" viewBox="0 0 1024 1024"><g transform="translate(0,900) scale(1,-1)">${paths}</g></svg>`)}<div class="cw-actions"><button class="cw-btn" id="prev">上一步</button><button class="cw-btn primary" id="play">播放</button><button class="cw-btn" id="next">下一步</button><button class="cw-btn warn" id="replay">重播</button><button class="cw-btn good" id="full">完整字</button></div>`;
-    el('prev').onclick=()=>{demoStep=clamp(demoStep-1,-1,components.length-1);renderDemo();};
-    el('next').onclick=()=>{demoStep=clamp(demoStep+1,-1,components.length-1);renderDemo();};
-    el('full').onclick=()=>{el('cw-grid').innerHTML=fullSvg();};
-    el('play').onclick=()=>playComponents(false); el('replay').onclick=()=>playComponents(true);
-  }
-  function playComponents(restart){if(restart)demoStep=-1;clearInterval(demoTimer);demoTimer=setInterval(()=>{demoStep++;if(demoStep>=components.length){demoStep=components.length-1;clearInterval(demoTimer);}renderDemo();},650);}
-
-  function renderTrace(){const model=currentHanziWriter?fullSvg(.13,'#0f172a'):`<div class="cw-big-text" style="color:#0f172a;opacity:.15">${activeChar}</div>`;el('cw-content').innerHTML=`<div class="cw-title"><span>仿寫練習：照著淡字描寫</span><span class="cw-sub">右側可調整筆色與粗細</span></div>${board(`<div id="cw-model" style="display:${showModel?'block':'none'}">${model}</div><canvas class="cw-canvas" id="cw-canvas"></canvas>`)}`;setupCanvas();}
-  function setupCanvas(){const c=el('cw-canvas'),g=el('cw-grid');if(!c)return;const ctx=c.getContext('2d');c.width=g.clientWidth;c.height=g.clientHeight;ctx.lineCap='round';ctx.lineJoin='round';const pos=e=>{const r=c.getBoundingClientRect();return{x:(e.touches?.[0]?.clientX??e.clientX)-r.left,y:(e.touches?.[0]?.clientY??e.clientY)-r.top};};const st=e=>{e.preventDefault();drawing=true;const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);};const mv=e=>{if(!drawing)return;e.preventDefault();const p=pos(e);ctx.strokeStyle=penColor;ctx.lineWidth=penSize;ctx.lineTo(p.x,p.y);ctx.stroke();};const ed=e=>{if(drawing){e.preventDefault();drawing=false;}};c.onmousedown=st;c.onmousemove=mv;c.onmouseup=ed;c.onmouseout=ed;c.ontouchstart=st;c.ontouchmove=mv;c.ontouchend=ed;}
-  function clearCanvas(){const c=el('cw-canvas');if(c)c.getContext('2d').clearRect(0,0,c.width,c.height);}
-
-  function renderStroke(){
-    if(!currentHanziWriter){el('cw-content').innerHTML=`<div class="cw-title"><span>筆畫配對</span><span class="cw-sub">沒有筆畫資料</span></div>${board(`<div class="cw-big-text">${activeChar}</div>`)}`;return;}
-    if(demoStep<0)demoStep=0; const miss=components[demoStep];
-    el('cw-content').innerHTML=`<div class="cw-title"><span>筆畫配對：找出缺少的一組</span><span class="cw-sub">缺少第 ${demoStep+1} 組</span></div>${board(hiddenSvg(miss.id))}<div class="cw-bank"><div class="cw-piece">${svg(miss.paths)}</div></div><div class="cw-actions"><button class="cw-btn" id="sprev">上一組</button><button class="cw-btn" id="snext">下一組</button><button class="cw-btn good" id="sshow">顯示答案</button></div>`;
-    el('sprev').onclick=()=>{demoStep=(demoStep-1+components.length)%components.length;renderStroke();};el('snext').onclick=()=>{demoStep=(demoStep+1)%components.length;renderStroke();};el('sshow').onclick=()=>{el('cw-grid').innerHTML=fullSvg();};
-  }
-
-  function renderPuzzle(){
-    if(!currentHanziWriter){el('cw-content').innerHTML=`<div class="cw-title"><span>部件拼貼</span><span class="cw-sub">沒有筆畫資料</span></div>${board(`<div class="cw-big-text">${activeChar}</div>`)}`;return;}
-    const bank=shuffle(components.filter(c=>!placedComps.includes(c.id)));
-    el('cw-content').innerHTML=`<div class="cw-title"><span>部件拼貼：拖曳筆畫群到田字格</span><span class="cw-sub">拖曳時會出現放大殘影，放入格子後回填正確筆畫</span></div>${board(placedSvg())}<div class="cw-bank" id="cw-bank">${bank.map(c=>`<div class="cw-piece" data-comp="${c.id}">${svg(c.paths)}</div>`).join('')}</div><div class="cw-feedback" id="cw-feedback">把下方部件拖到田字格中</div><div class="cw-actions"><button class="cw-btn" id="resetPuzzle">重新開始</button><button class="cw-btn primary" id="showAnswer">看答案</button></div>`;
-    bindPieces(); el('resetPuzzle').onclick=()=>{placedComps=[];renderPuzzle();}; el('showAnswer').onclick=()=>{placedComps=components.map(c=>c.id);renderPuzzle();};
-  }
-  function bindPieces(){document.querySelectorAll(`#${MODAL_ID} .cw-piece[data-comp]`).forEach(piece=>{piece.onpointerdown=e=>startDrag(e,piece);});}
-  function startDrag(e,piece){e.preventDefault();const id=parseInt(piece.dataset.comp,10);const comp=components.find(c=>c.id===id);if(!comp)return;const ghost=document.createElement('div');ghost.className='cw-ghost';ghost.innerHTML=svg(comp.paths);document.body.appendChild(ghost);drag={id,ghost};moveGhost(e.clientX,e.clientY);document.addEventListener('pointermove',moveDrag,true);document.addEventListener('pointerup',endDrag,true);}
-  function moveGhost(x,y){if(drag?.ghost){drag.ghost.style.left=(x-140)+'px';drag.ghost.style.top=(y-140)+'px';}}
-  function moveDrag(e){if(!drag)return;e.preventDefault();moveGhost(e.clientX,e.clientY);}
-  function endDrag(e){if(!drag)return;e.preventDefault();const id=drag.id;drag.ghost.remove();document.removeEventListener('pointermove',moveDrag,true);document.removeEventListener('pointerup',endDrag,true);const g=el('cw-grid'),r=g.getBoundingClientRect();const inside=e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom; if(inside)checkPuzzleDrop(id); drag=null;}
-  function checkPuzzleDrop(id){const fb=el('cw-feedback'); if(strictOrder && id!==placedComps.length){fb.textContent='順序不對，請先放第 '+(placedComps.length+1)+' 組。';fb.style.color='#e11d48';const p=document.querySelector(`[data-comp="${id}"]`);p?.classList.add('cw-wrong');setTimeout(()=>p?.classList.remove('cw-wrong'),700);return;} if(!placedComps.includes(id)){placedComps.push(id);fb.textContent='成功放入第 '+(id+1)+' 組！';fb.style.color='#059669';renderPuzzle();}}
-
-  function apply(){ensureModal();addButton();}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply);else apply();window.addEventListener('load',apply);setInterval(addButton,1000);
+  function renderDemo(){ if(!currentHanziWriter){el('cw-content').innerHTML=`<div class="cw-title"><span>播放展示</span><span class="cw-sub">沒有筆畫資料</span></div>${board(`<div class="cw-big-text">${activeChar}</div>`)}`;return;} const paths=components.flatMap(c=>c.paths.map(p=>`<path d="${p}" fill="${COLORS[c.id%COLORS.length]}" opacity="${c.id<=demoStep?1:.10}"/>`)).join(''); el('cw-content').innerHTML=`<div class="cw-title"><span>播放展示：依部件逐步出現</span><span class="cw-sub">第 ${Math.max(0,demoStep+1)} / ${components.length} 組</span></div>${board(`<svg class="cw-svg" viewBox="0 0 1024 1024"><g transform="translate(0,900) scale(1,-1)">${paths}</g></svg>`)}<div class="cw-actions"><button class="cw-btn" id="prev">上一步</button><button class="cw-btn primary" id="play">播放</button><button class="cw-btn" id="next">下一步</button><button class="cw-btn warn" id="replay">重播</button><button class="cw-btn good" id="full">完整字</button></div>`; el('prev').onclick=()=>{demoStep=clamp(demoStep-1,-1,components.length-1);renderDemo();}; el('next').onclick=()=>{demoStep=clamp(demoStep+1,-1,components.length-1);renderDemo();}; el('full').onclick=()=>{el('cw-grid').innerHTML=fullSvg();}; el('play').onclick=()=>playComponents(false); el('replay').onclick=()=>playComponents(true); }
+  function playComponents(restart){ if(restart)demoStep=-1; clearInterval(demoTimer); demoTimer=setInterval(()=>{demoStep++; if(demoStep>=components.length){demoStep=components.length-1;clearInterval(demoTimer);} renderDemo();},650); }
+  function renderTrace(){ el('cw-content').innerHTML=`<div class="cw-title"><span>仿寫練習：照著彩色範字描寫</span><span class="cw-sub">紅點是第一筆起點，右側可調整筆色與粗細</span></div>${board(`<div id="cw-model" class="cw-model" style="display:${showModel?'block':'none'}">${coloredTraceSvg()}</div><canvas class="cw-canvas" id="cw-canvas"></canvas><div class="cw-start-tip">● 請從紅色圓點開始下筆</div>`)}`; setupCanvas(); }
+  function setupCanvas(){ const c=el('cw-canvas'),g=el('cw-grid'); if(!c)return; const ctx=c.getContext('2d'); c.width=g.clientWidth; c.height=g.clientHeight; ctx.lineCap='round'; ctx.lineJoin='round'; const pos=e=>{const r=c.getBoundingClientRect();return{x:(e.touches?.[0]?.clientX??e.clientX)-r.left,y:(e.touches?.[0]?.clientY??e.clientY)-r.top};}; const st=e=>{e.preventDefault();drawing=true;const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);}; const mv=e=>{if(!drawing)return;e.preventDefault();const p=pos(e);ctx.strokeStyle=penColor;ctx.lineWidth=penSize;ctx.lineTo(p.x,p.y);ctx.stroke();}; const ed=e=>{if(drawing){e.preventDefault();drawing=false;}}; c.onmousedown=st;c.onmousemove=mv;c.onmouseup=ed;c.onmouseout=ed;c.ontouchstart=st;c.ontouchmove=mv;c.ontouchend=ed; }
+  function clearCanvas(){ const c=el('cw-canvas'); if(c)c.getContext('2d').clearRect(0,0,c.width,c.height); }
+  function renderStroke(){ if(!currentHanziWriter){el('cw-content').innerHTML=`<div class="cw-title"><span>筆畫配對</span><span class="cw-sub">沒有筆畫資料</span></div>${board(`<div class="cw-big-text">${activeChar}</div>`)}`;return;} if(demoStep<0)demoStep=0; const miss=components[demoStep]; el('cw-content').innerHTML=`<div class="cw-title"><span>筆畫配對：找出缺少的一組</span><span class="cw-sub">缺少第 ${demoStep+1} 組</span></div>${board(hiddenSvg(miss.id))}<div class="cw-bank"><div class="cw-piece">${svg(miss.paths)}</div></div><div class="cw-actions"><button class="cw-btn" id="sprev">上一組</button><button class="cw-btn" id="snext">下一組</button><button class="cw-btn good" id="sshow">顯示答案</button></div>`; el('sprev').onclick=()=>{demoStep=(demoStep-1+components.length)%components.length;renderStroke();}; el('snext').onclick=()=>{demoStep=(demoStep+1)%components.length;renderStroke();}; el('sshow').onclick=()=>{el('cw-grid').innerHTML=fullSvg();}; }
+  function renderPuzzle(){ if(!currentHanziWriter){el('cw-content').innerHTML=`<div class="cw-title"><span>部件拼貼</span><span class="cw-sub">沒有筆畫資料</span></div>${board(`<div class="cw-big-text">${activeChar}</div>`)}`;return;} const bank=shuffle(components.filter(c=>!placedComps.includes(c.id))); el('cw-content').innerHTML=`<div class="cw-title"><span>部件拼貼：拖曳筆畫群到田字格</span><span class="cw-sub">拖曳時會出現放大殘影，放入格子後回填正確筆畫</span></div>${board(placedSvg())}<div class="cw-bank" id="cw-bank">${bank.map(c=>`<div class="cw-piece" data-comp="${c.id}">${svg(c.paths)}</div>`).join('')}</div><div class="cw-feedback" id="cw-feedback">把下方部件拖到田字格中</div><div class="cw-actions"><button class="cw-btn" id="resetPuzzle">重新開始</button><button class="cw-btn primary" id="showAnswer">看答案</button></div>`; bindPieces(); el('resetPuzzle').onclick=()=>{placedComps=[];renderPuzzle();}; el('showAnswer').onclick=()=>{placedComps=components.map(c=>c.id);renderPuzzle();}; }
+  function bindPieces(){ document.querySelectorAll(`#${MODAL_ID} .cw-piece[data-comp]`).forEach(piece=>{piece.onpointerdown=e=>startDrag(e,piece);}); }
+  function startDrag(e,piece){ e.preventDefault(); const id=parseInt(piece.dataset.comp,10); const comp=components.find(c=>c.id===id); if(!comp)return; const ghost=document.createElement('div'); ghost.className='cw-ghost'; ghost.innerHTML=svg(comp.paths); document.body.appendChild(ghost); drag={id,ghost}; moveGhost(e.clientX,e.clientY); document.addEventListener('pointermove',moveDrag,true); document.addEventListener('pointerup',endDrag,true); }
+  function moveGhost(x,y){ if(drag?.ghost){drag.ghost.style.left=(x-140)+'px';drag.ghost.style.top=(y-140)+'px';} }
+  function moveDrag(e){ if(!drag)return; e.preventDefault(); moveGhost(e.clientX,e.clientY); }
+  function endDrag(e){ if(!drag)return; e.preventDefault(); const id=drag.id; drag.ghost.remove(); document.removeEventListener('pointermove',moveDrag,true); document.removeEventListener('pointerup',endDrag,true); const g=el('cw-grid'),r=g.getBoundingClientRect(); const inside=e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom; if(inside)checkPuzzleDrop(id); drag=null; }
+  function checkPuzzleDrop(id){ const fb=el('cw-feedback'); if(strictOrder&&id!==placedComps.length){fb.textContent='順序不對，請先放第 '+(placedComps.length+1)+' 組。';fb.style.color='#e11d48';const p=document.querySelector(`[data-comp="${id}"]`);p?.classList.add('cw-wrong');setTimeout(()=>p?.classList.remove('cw-wrong'),700);return;} if(!placedComps.includes(id)){placedComps.push(id);fb.textContent='成功放入第 '+(id+1)+' 組！';fb.style.color='#059669';renderPuzzle();} }
+  function apply(){ ensureModal(); addButton(); }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply);else apply(); window.addEventListener('load',apply); setInterval(addButton,1000);
 })();
