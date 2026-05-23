@@ -1,5 +1,5 @@
 // 局部修補：生字語詞教材編輯站 → 儲存 / 載入 GitHub 教材
-// 也會自動載入 worksheet-export-patch.js 與 game-mode-patch.js。
+// 也會自動載入 worksheet-export-patch.js、game-mode-patch.js、character-workshop-patch.js。
 (function () {
   const PATCH_ID = 'material-github-patch-panel';
 
@@ -18,6 +18,10 @@
 
   function loadGameModePatch() {
     loadExternalPatch('game-mode-patch-script', './game-mode-patch.js');
+  }
+
+  function loadCharacterWorkshopPatch() {
+    loadExternalPatch('character-workshop-patch-script', './character-workshop-patch.js');
   }
 
   function getEl(id) {
@@ -202,6 +206,7 @@
   function applyPatch() {
     loadWorksheetExportPatch();
     loadGameModePatch();
+    loadCharacterWorkshopPatch();
     insertMaterialPanel();
   }
 
